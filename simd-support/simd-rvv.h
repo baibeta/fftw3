@@ -31,18 +31,18 @@
 
 #ifdef FFTW_SINGLE
 #  define DS(d,s) s /* single-precision option */
-#  define TYPE(name) __riscv_ ## name ## _f32m1
-#  define TYPEUINT(name) __riscv_ ## name ## _u32m1
-#  define TYPEINTERPRETF2U(name) __riscv_ ## name ## _f32m1_u32m1
-#  define TYPEINTERPRETU2F(name) __riscv_ ## name ## _u32m1_f32m1
-#  define TYPEMEM(name) __riscv_ ## name ## e32_v_f32m1
+#  define TYPE(name) name ## _f32m1
+#  define TYPEUINT(name) name ## _u32m1
+#  define TYPEINTERPRETF2U(name) name ## _f32m1_u32m1
+#  define TYPEINTERPRETU2F(name) name ## _u32m1_f32m1
+#  define TYPEMEM(name) name ## e32_v_f32m1
 #else
 #  define DS(d,s) d /* double-precision option */
-#  define TYPE(name) __riscv_ ## name ## _f64m1
-#  define TYPEUINT(name) __riscv_ ## name ## _u64m1
-#  define TYPEINTERPRETF2U(name) __riscv_ ## name ## _f64m1_u64m1
-#  define TYPEINTERPRETU2F(name) __riscv_ ## name ## _u64m1_f64m1
-#  define TYPEMEM(name) __riscv_ ## name ## e64_v_f64m1
+#  define TYPE(name) name ## _f64m1
+#  define TYPEUINT(name) name ## _u64m1
+#  define TYPEINTERPRETF2U(name) name ## _f64m1_u64m1
+#  define TYPEINTERPRETU2F(name) name ## _u64m1_f64m1
+#  define TYPEMEM(name) name ## e64_v_f64m1
 #endif
 
 #if RVV_VLEN == 65536
@@ -89,28 +89,67 @@ typedef DS(vuint64m1_t, vuint32m1_t) Vuint;
 
 static inline V VDUPL(const V x)
 {
-	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
-	V xl = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), partr, 2*VL)); // set odd elements to 0
-	return VADD(TYPE(vfslide1up_vf)(xl, ZERO, 2*VL), xl);
+//	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
+//	V xl = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), partr, 2*VL)); // set odd elements to 0
+//	return VADD(TYPE(vfslide1up_vf)(xl, ZERO, 2*VL), xl);
+
+/* workaround vlen128 code for thead rvv0.7.1 */
+#ifdef FFTW_SINGLE
+	float f[4] ={0};
+	uint32_t index[4]={0,0,2,2};
+	vse32_v_f32m1(f,x,4);
+        vuint32m1_t i = vle32_v_u32m1(index,4);
+	return vloxei32_v_f32m1(f, i, 4);
+#else
+        return vrgather_vx_f64m1(x, 0, 2);
+#endif
+
 }
 
 static inline V VDUPH(const V x)
 {
-	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
-	Vuint parti = TYPEUINT(vnot_v)(partr, 2*VL); // (0, all 1, 0, all 1, ...)
-	V xh = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), parti, 2*VL)); // set even elements to 0
-	return VADD(TYPE(vfslide1down_vf)(xh, ZERO, 2*VL), xh);
+//	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
+//	Vuint parti = TYPEUINT(vnot_v)(partr, 2*VL); // (0, all 1, 0, all 1, ...)
+//	V xh = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), parti, 2*VL)); // set even elements to 0
+//	return VADD(TYPE(vfslide1down_vf)(xh, ZERO, 2*VL), xh);
+
+/* workaround vlen128 code for thead rvv0.7.1 */
+#ifdef FFTW_SINGLE
+        float f[4] ={0};
+        uint32_t index[4]={1,1,3,3};
+        vse32_v_f32m1(f,x,4);
+        vuint32m1_t i = vle32_v_u32m1(index,4);
+        return vloxei32_v_f32m1(f, i, 4);
+#else
+        return vrgather_vx_f64m1(x, 1, 2);
+#endif
 }
 
 #define DVK(var, val) V var = TYPE(vfmv_v_f)(val, 2*VL)
 
 static inline V FLIP_RI(const V x)
 {
-	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
-	V xl = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), partr, 2*VL)); // set odd elements to 0
-	Vuint parti = TYPEUINT(vnot_v)(partr, 2*VL); // (0, all 1, 0, all 1, ...)
-	V xh = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), parti, 2*VL)); // set even elements to 0
-	return VADD(TYPE(vfslide1down_vf)(xh, ZERO, 2*VL), TYPE(vfslide1up_vf)(xl, ZERO, 2*VL));
+//	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
+//	V xl = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), partr, 2*VL)); // set odd elements to 0
+//	Vuint parti = TYPEUINT(vnot_v)(partr, 2*VL); // (0, all 1, 0, all 1, ...)
+//	V xh = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), parti, 2*VL)); // set even elements to 0
+//	return VADD(TYPE(vfslide1down_vf)(xh, ZERO, 2*VL), TYPE(vfslide1up_vf)(xl, ZERO, 2*VL));
+
+/* workaround vlen128 code for thead rvv0.7.1 */
+#ifdef FFTW_SINGLE
+        float f[4] = {0};
+        uint32_t index[4] = {1,0,3,2};
+        vse32_v_f32m1(f,x,4);
+        vuint32m1_t i = vle32_v_u32m1(index,4);
+        return vloxei32_v_f32m1(f, i, 4);
+#else
+        double f[2] = {0};
+	vse64_v_f64m1(f,x,2);
+	double t = f[0];
+	f[0] = f[1];
+	f[1] = t;
+	return vle64_v_f64m1(f,2);
+#endif
 }
 
 static inline V VCONJ(const V x)
@@ -124,11 +163,15 @@ static inline V VCONJ(const V x)
 
 static inline V VBYI(V x)
 {
-	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
-	V xl = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), partr, 2*VL)); // set odd elements to 0
-	Vuint parti = TYPEUINT(vnot_v)(partr, 2*VL); // (0, all 1, 0, all 1, ...)
-	V xh = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(VNEG(x)), parti, 2*VL)); // set elements to negative, then set even elements to 0
-	return VADD(TYPE(vfslide1down_vf)(xh, ZERO, 2*VL), TYPE(vfslide1up_vf)(xl, ZERO, 2*VL));
+//	Vuint partr = VPARTSPLIT; // (all 1, 0, all 1, 0, ...)
+//	V xl = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(x), partr, 2*VL)); // set odd elements to 0
+//	Vuint parti = TYPEUINT(vnot_v)(partr, 2*VL); // (0, all 1, 0, all 1, ...)
+//	V xh = TYPEINTERPRETU2F(vreinterpret_v)(TYPEUINT(vand_vv)(TYPEINTERPRETF2U(vreinterpret_v)(VNEG(x)), parti, 2*VL)); // set elements to negative, then set even elements to 0
+//	return VADD(TYPE(vfslide1down_vf)(xh, ZERO, 2*VL), TYPE(vfslide1up_vf)(xl, ZERO, 2*VL));
+
+        x = VCONJ(x);
+        x = FLIP_RI(x);
+        return x;
 }
 
 #define LDK(x) x
